@@ -6,8 +6,8 @@ import android.view.View;
 import androidx.annotation.IdRes;
 import androidx.annotation.NonNull;
 
-public abstract class Binder<T> {
-    @NonNull
+@SuppressWarnings("unchecked")
+public abstract class Binder<T>{
     private View itemView;
     private SparseArray<View> viewSparseArray = new SparseArray<>();
 
@@ -31,4 +31,7 @@ public abstract class Binder<T> {
     private View f(@IdRes int id){
         return itemView.findViewById(id);
     }
+
+    public abstract int getDragDirections();
+    public abstract int getSwipeDirections();
 }

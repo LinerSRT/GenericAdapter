@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-@SuppressWarnings("rawtypes")
+@SuppressWarnings("rawtypes | UnusedReturnValue | unused | ConstantConditions | unchecked")
 public class GenericAdapter extends RecyclerView.Adapter<GenericAdapter.ViewHolder> {
     private final List<Object> items = new ArrayList<>();
     private final SparseArray<Class> binders = new SparseArray<>();
@@ -42,15 +42,19 @@ public class GenericAdapter extends RecyclerView.Adapter<GenericAdapter.ViewHold
         Class binderClass = binders.get(viewType);
         if (binderClass != null) {
             View itemView = LayoutInflater.from(parent.getContext()).inflate(viewType, parent, false);
-            //noinspection unchecked
-            return new ViewHolder<>(itemView, binderClass, layoutsToTypes.get(viewType));
+            try {
+                Binder binder = (Binder) binderClass.newInstance();
+                binder.setItemView(itemView);
+                return new ViewHolder(itemView, binder, layoutsToTypes.get(viewType));
+            } catch (IllegalAccessException | InstantiationException e) {
+                e.printStackTrace();
+            }
         }
         throw new IllegalStateException("No binder added for viewType " + viewType);
     }
 
     @Override
     public void onBindViewHolder(ViewHolder holder, int position) {
-        //noinspection unchecked
         holder.bind(items.get(position));
     }
 
@@ -82,6 +86,10 @@ public class GenericAdapter extends RecyclerView.Adapter<GenericAdapter.ViewHold
         } else {
             throw new IllegalStateException("Class " + o.getClass().getSimpleName() + " not registered in the adapter");
         }
+    }
+
+    public Class getObjectClassType(int position) {
+        return layoutsToTypes.get(position);
     }
 
 
@@ -125,7 +133,6 @@ public class GenericAdapter extends RecyclerView.Adapter<GenericAdapter.ViewHold
 
     @NonNull
     public <T> T get(int i) {
-        //noinspection unchecked
         return (T) items.get(i);
     }
 
@@ -139,27 +146,20 @@ public class GenericAdapter extends RecyclerView.Adapter<GenericAdapter.ViewHold
         private final Class<T> modelClass;
         private T model = null;
 
-        ViewHolder(@NonNull View itemView, @NonNull Class<R> binderClass, @NonNull Class<T> modelClass) {
+        ViewHolder(@NonNull View itemView, R binder, @NonNull Class<T> modelClass) {
             super(itemView);
             this.modelClass = modelClass;
-            R binder = null;
-            try {
-                binder = binderClass.newInstance();
-                binder.setItemView(itemView);
-            } catch (InstantiationException | IllegalAccessException e) {
-                e.printStackTrace();
-            }
-            if (binder == null) throw new IllegalStateException("Binder might be null!");
             this.binder = binder;
             this.binder.init();
             itemView.setOnClickListener(this);
+            itemView.setOnLongClickListener(this);
+            itemView.setOnDragListener(this);
         }
 
         void bind(T model) {
             this.model = model;
             binder.bind(model);
             if (boundCallbackMap.containsKey(modelClass)) {
-                //noinspection unchecked
                 Objects.requireNonNull(boundCallbackMap.get(modelClass)).itemBound(binder, model);
             }
         }
@@ -167,7 +167,6 @@ public class GenericAdapter extends RecyclerView.Adapter<GenericAdapter.ViewHold
         @Override
         public void onClick(@NonNull View view) {
             if (onInteractHashMap.containsKey(modelClass)) {
-                //noinspection unchecked
                 Objects.requireNonNull(onInteractHashMap.get(modelClass)).onClick(binder, model);
             }
         }
@@ -175,7 +174,6 @@ public class GenericAdapter extends RecyclerView.Adapter<GenericAdapter.ViewHold
         @Override
         public boolean onLongClick(View v) {
             if (onInteractHashMap.containsKey(modelClass)) {
-                //noinspection unchecked
                 Objects.requireNonNull(onInteractHashMap.get(modelClass)).onLongClick(binder, model);
             }
             return true;
@@ -184,10 +182,26 @@ public class GenericAdapter extends RecyclerView.Adapter<GenericAdapter.ViewHold
         @Override
         public boolean onDrag(View v, DragEvent event) {
             if (onInteractHashMap.containsKey(modelClass)) {
-                //noinspection unchecked
                 Objects.requireNonNull(onInteractHashMap.get(modelClass)).onDrag(binder, event, model);
             }
             return false;
         }
+
+        public boolean allowDrag() {
+            return binder.getDragDirections() != 0;
+        }
+
+        public int getDragDirections() {
+            return binder.getDragDirections();
+        }
+
+        public boolean allowSwipe() {
+            return binder.getSwipeDirections() != 0;
+        }
+
+        public int getSwipeDirections() {
+            return binder.getSwipeDirections();
+        }
     }
+
 }
