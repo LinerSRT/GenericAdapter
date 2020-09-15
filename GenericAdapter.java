@@ -1,111 +1,193 @@
 package com.liner.genericadapter;
 
+import android.util.SparseArray;
+import android.view.DragEvent;
+import android.view.LayoutInflater;
+import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.annotation.LayoutRes;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
-public abstract class GenericAdapter<T> extends RecyclerView.Adapter<GenericViewHolder> {
+@SuppressWarnings("rawtypes")
+public class GenericAdapter extends RecyclerView.Adapter<GenericAdapter.ViewHolder> {
+    private final List<Object> items = new ArrayList<>();
+    private final SparseArray<Class> binders = new SparseArray<>();
+    private final SparseArray<Class> layoutsToTypes = new SparseArray<>();
+    private final Map<Class, Integer> typesToLayouts = new HashMap<>();
+    private final Map<Class, OnInteract> onInteractHashMap = new HashMap<>();
+    private final Map<Class, OnBindedCallback> boundCallbackMap = new HashMap<>();
 
-    public int layoutID;
-    public List<T> data;
 
-    public GenericAdapter(int layoutID) {
-        this(layoutID, new ArrayList<T>());
+    public <R extends Binder<T>, T> GenericAdapter register(@LayoutRes int layout, @NonNull Class<T> clazz, @NonNull Class<R> binder) {
+        binders.put(layout, binder);
+        typesToLayouts.put(clazz, layout);
+        layoutsToTypes.put(layout, clazz);
+        return this;
     }
 
-    public GenericAdapter(int layoutID, List<T> data) {
-        this.layoutID = layoutID;
-        this.data = data;
-    }
 
     @NonNull
     @Override
-    public GenericViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        return new GenericViewHolder(parent, layoutID);
+    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        Class binderClass = binders.get(viewType);
+        if (binderClass != null) {
+            View itemView = LayoutInflater.from(parent.getContext()).inflate(viewType, parent, false);
+            //noinspection unchecked
+            return new ViewHolder<>(itemView, binderClass, layoutsToTypes.get(viewType));
+        }
+        throw new IllegalStateException("No binder added for viewType " + viewType);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull GenericViewHolder holder, final int position) {
-        bindAdapter(holder, position, getItem(position));
+    public void onBindViewHolder(ViewHolder holder, int position) {
+        //noinspection unchecked
+        holder.bind(items.get(position));
     }
 
     @Override
     public int getItemCount() {
-        return data == null ? 0 : data.size();
+        return items.size();
     }
 
-    public abstract void bindAdapter(GenericViewHolder holder, int position, T item);
+    public int indexOf(@NonNull Object o) {
+        return items.indexOf(o);
+    }
+
+    public void remove(int index) {
+        items.remove(index);
+    }
+
+    public void insert(int index, @NonNull Object o) {
+        items.add(index, o);
+    }
 
 
-    public void init(List<T> data) {
-        if (data == null)
-            return;
-        this.data = data;
-        notifyDataSetChanged();
+    @Override
+    public int getItemViewType(int position) {
+        Object o = items.get(position);
+        if (o == null)
+            throw new IllegalStateException("Item at index " + position + " is null!");
+        if (typesToLayouts.containsKey(o.getClass())) {
+            return typesToLayouts.get(o.getClass());
+        } else {
+            throw new IllegalStateException("Class " + o.getClass().getSimpleName() + " not registered in the adapter");
+        }
+    }
+
+
+    public void add(@NonNull Object item) {
+        items.add(item);
+    }
+
+    public void add(@NonNull Object... items) {
+        Collections.addAll(this.items, items);
+    }
+
+
+    public void add(@NonNull Collection<?> items) {
+        this.items.addAll(items);
     }
 
     public void clear() {
-        if (data == null)
-            return;
-        data.clear();
-        notifyDataSetChanged();
+        items.clear();
     }
 
-    public void add(List<T> data) {
-        if (this.data == null)
-            this.data = new ArrayList<>();
-        int position = this.data.size();
-        this.data.addAll(data);
-        notifyItemRangeChanged(position, data.size());
+
+    public void set(@NonNull Object... items) {
+        this.items.clear();
+        Collections.addAll(this.items, items);
     }
 
-    public void add(T item) {
-        if (data == null)
-            data = new ArrayList<>();
-        data.add(item);
-        notifyItemInserted(data.size());
+
+    public void set(@NonNull Collection<?> items) {
+        this.items.clear();
+        this.items.addAll(items);
     }
 
-    public void add(int position, T item) {
-        if (data == null)
-            data = new ArrayList<>();
-        data.add(position, item);
-        notifyItemInserted(position);
+    public <R extends Binder<T>, T> void onInteract(@NonNull Class<T> clazz, @NonNull OnInteract<R, T> onInteract) {
+        onInteractHashMap.put(clazz, onInteract);
     }
 
-    public void set(int position, T item) {
-        if (data.size() < position)
-            return;
-        data.set(position, item);
-        notifyItemChanged(position);
+
+    public <S extends Binder<T>, T> void onBinded(@NonNull Class<T> clazz, @NonNull OnBindedCallback<T, S> callback) {
+        boundCallbackMap.put(clazz, callback);
     }
 
-    public void remove(T item) {
-        if (data == null || !data.contains(item))
-            return;
-        remove(data.indexOf(item));
+    @NonNull
+    public <T> T get(int i) {
+        //noinspection unchecked
+        return (T) items.get(i);
     }
 
-    public void remove(int position) {
-        if (data == null || data.size() < position)
-            return;
-        data.remove(position);
-        notifyItemRemoved(position);
+    public List getItems() {
+        return items;
     }
 
-    public List<T> getData() {
-        return data;
-    }
+    class ViewHolder<R extends Binder<T>, T> extends RecyclerView.ViewHolder implements View.OnClickListener, View.OnLongClickListener, View.OnDragListener {
+        private final R binder;
+        @NonNull
+        private final Class<T> modelClass;
+        private T model = null;
 
-    @Nullable
-    public T getItem(int position) {
-        if (data == null || data.size() < position)
-            return null;
-        return data.get(position);
+        ViewHolder(@NonNull View itemView, @NonNull Class<R> binderClass, @NonNull Class<T> modelClass) {
+            super(itemView);
+            this.modelClass = modelClass;
+            R binder = null;
+            try {
+                binder = binderClass.newInstance();
+                binder.setItemView(itemView);
+            } catch (InstantiationException | IllegalAccessException e) {
+                e.printStackTrace();
+            }
+            if (binder == null) throw new IllegalStateException("Binder might be null!");
+            this.binder = binder;
+            this.binder.init();
+            itemView.setOnClickListener(this);
+        }
+
+        void bind(T model) {
+            this.model = model;
+            binder.bind(model);
+            if (boundCallbackMap.containsKey(modelClass)) {
+                //noinspection unchecked
+                Objects.requireNonNull(boundCallbackMap.get(modelClass)).itemBound(binder, model);
+            }
+        }
+
+        @Override
+        public void onClick(@NonNull View view) {
+            if (onInteractHashMap.containsKey(modelClass)) {
+                //noinspection unchecked
+                Objects.requireNonNull(onInteractHashMap.get(modelClass)).onClick(binder, model);
+            }
+        }
+
+        @Override
+        public boolean onLongClick(View v) {
+            if (onInteractHashMap.containsKey(modelClass)) {
+                //noinspection unchecked
+                Objects.requireNonNull(onInteractHashMap.get(modelClass)).onLongClick(binder, model);
+            }
+            return true;
+        }
+
+        @Override
+        public boolean onDrag(View v, DragEvent event) {
+            if (onInteractHashMap.containsKey(modelClass)) {
+                //noinspection unchecked
+                Objects.requireNonNull(onInteractHashMap.get(modelClass)).onDrag(binder, event, model);
+            }
+            return false;
+        }
     }
 }
