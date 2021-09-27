@@ -1,4 +1,4 @@
-package com.liner.genericadapter;
+package com.liner.cartracker.utils.genericadapter;
 
 import android.view.View;
 
@@ -7,15 +7,14 @@ import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.RecyclerView;
 
-@SuppressWarnings("rawtypes | unused")
-public class GenericDragHelper extends ItemTouchHelper.Callback {
-    private Callback callback;
-
-    public GenericDragHelper(Callback callback) {
+@SuppressWarnings("ALL")
+public class LTouchHelper extends ItemTouchHelper.Callback {
+    private final Callback callback;
+    public LTouchHelper(Callback callback) {
         this.callback = callback;
     }
 
-    public GenericDragHelper attachToRecyclerView(RecyclerView recyclerView) {
+    public LTouchHelper attachToRecyclerView(RecyclerView recyclerView) {
         ItemTouchHelper touchHelper = new ItemTouchHelper(this);
         touchHelper.attachToRecyclerView(recyclerView);
         return this;
@@ -23,8 +22,8 @@ public class GenericDragHelper extends ItemTouchHelper.Callback {
 
     @Override
     public int getMovementFlags(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
-        if (viewHolder instanceof GenericAdapter.ViewHolder) {
-            GenericAdapter.ViewHolder holder = (GenericAdapter.ViewHolder) viewHolder;
+        if (viewHolder instanceof LAdapter.ViewHolder) {
+            LAdapter.ViewHolder holder = (LAdapter.ViewHolder) viewHolder;
             return makeMovementFlags((holder.allowDrag()) ? holder.getDragDirections() : 0, (holder.allowSwipe()) ? holder.getSwipeDirections() : 0);
         }
         return 0;
@@ -32,9 +31,9 @@ public class GenericDragHelper extends ItemTouchHelper.Callback {
 
     @Override
     public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
-        if (viewHolder instanceof GenericAdapter.ViewHolder) {
-            GenericAdapter.ViewHolder holder = (GenericAdapter.ViewHolder) viewHolder;
-            GenericAdapter.ViewHolder targetHolder = (GenericAdapter.ViewHolder) target;
+        if (viewHolder instanceof LAdapter.ViewHolder) {
+            LAdapter.ViewHolder holder = (LAdapter.ViewHolder) viewHolder;
+            LAdapter.ViewHolder targetHolder = (LAdapter.ViewHolder) target;
             if (holder.allowDrag() && targetHolder.allowDrag()) {
                 callback.onMoved(holder.getAdapterPosition(), targetHolder.getAdapterPosition());
                 return true;
@@ -47,8 +46,8 @@ public class GenericDragHelper extends ItemTouchHelper.Callback {
 
     @Override
     public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
-        if (viewHolder instanceof GenericAdapter.ViewHolder) {
-            GenericAdapter.ViewHolder holder = (GenericAdapter.ViewHolder) viewHolder;
+        if (viewHolder instanceof LAdapter.ViewHolder) {
+            LAdapter.ViewHolder holder = (LAdapter.ViewHolder) viewHolder;
             if (holder.allowSwipe()) {
                 callback.onSwiped(holder.itemView, holder.getAdapterPosition(), direction);
             }
